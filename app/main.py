@@ -16,7 +16,7 @@ from app.utils.session_state import initialize_session_state, update_api_keys
 
 def setup_agent(groq_api_key: str, tavily_api_key: str, uploaded_files, chunk_size: int, chunk_overlap: int, llm_selection: str):
     """
-    Set up the RAG agent with the given configuration.
+    Enhanced agent setup with better error handling and user feedback.
     
     Args:
         groq_api_key (str): GROQ API key
@@ -26,25 +26,81 @@ def setup_agent(groq_api_key: str, tavily_api_key: str, uploaded_files, chunk_si
         chunk_overlap (int): Overlap between chunks
         llm_selection (str): Selected LLM from Groq
     """
-    with st.spinner("Processing documents..."):
-        # Load and process documents
-        st.session_state.docs = load_and_chunk_pdfs(uploaded_files, chunk_size, chunk_overlap)
+    setup_container = st.container()
+    
+    with setup_container:
+        progress_bar = st.progress(0)
+        status_text = st.empty()
         
-        # Build vector and sparse indexes
-        st.session_state.faiss_index, st.session_state.bm25_retriever = build_indexes(st.session_state.docs)
-        
-        # Initialize LLM
-        st.session_state.llm = get_llm(groq_api_key, model_name=llm_selection)
-        
-        # Set up agent
-        st.session_state.agent_executor = create_agent_and_tools(
-            st.session_state.llm, st.session_state.memory, tavily_api_key
-        )
-        
-        # Update processed files list
-        st.session_state.processed_files = [f.name for f in uploaded_files]
-        
-        st.success("Documents processed! Agent is ready.")
+        try:
+            # Step 1: Process documents
+            status_text.text("📄 Processing documents...")
+            progress_bar.progress(0.2)
+            
+            st.session_state.docs = load_and_chunk_pdfs(uploaded_files, chunk_size, chunk_overlap)
+            
+            if not st.session_state.docs:
+                st.error("❌ No valid documents were processed. Please check your files and try again.")
+                return
+            
+            # Step 2: Build indexes
+            status_text.text("🔍 Building search indexes...")
+            progress_bar.progress(0.5)
+            
+            st.session_state.faiss_index, st.session_state.bm25_retriever = build_indexes(st.session_state.docs)
+            
+            # Step 3: Initialize LLM
+            status_text.text("🤖 Initializing AI model...")
+            progress_bar.progress(0.7)
+            
+            st.session_state.llm = get_llm(groq_api_key, model_name=llm_selection)
+            
+            # Step 4: Set up agent
+            status_text.text("🧠 Setting up intelligent agent...")
+            progress_bar.progress(0.9)
+            
+            st.session_state.agent_executor = create_agent_and_tools(
+                st.session_state.llm, st.session_state.memory, tavily_api_key
+            )
+            
+            # Step 5: Finalize
+            progress_bar.progress(1.0)
+            status_text.text("✅ Setup complete!")
+            
+            # Update processed files list
+            st.session_state.processed_files = [f.name for f in uploaded_files]
+            
+            # Show summary
+            doc_count = len(st.session_state.docs)
+            files_count = len(uploaded_files)
+            
+            success_msg = f"""
+            🎉 **Setup Complete!**
+            
+            ✅ Processed **{files_count}** files into **{doc_count}** searchable chunks  
+            🤖 Using **{llm_selection}** for responses  
+            🔍 Hybrid search enabled (Vector + Keyword)  
+            
+            **You can now ask questions about your documents!**
+            """
+            
+            st.success(success_msg)
+            
+            # Clear progress indicators after a moment
+            import time
+            time.sleep(1)
+            progress_bar.empty()
+            status_text.empty()
+            
+        except Exception as e:
+            progress_bar.empty()
+            status_text.empty()
+            st.error(f"❌ **Setup failed:** {str(e)}")
+            
+            # Clear any partial state
+            for key in ['docs', 'faiss_index', 'bm25_retriever', 'agent_executor', 'llm']:
+                if key in st.session_state:
+                    del st.session_state[key]
 
 
 def main():
@@ -106,9 +162,33 @@ def main():
                 sidebar_inputs["llm_selection"]
             )
     
-    # Display main content
-    st.header(APP_TITLE)
-    st.caption("I can answer questions about your documents, summarize them, or search the web.")
+    # Display main content with better structure
+    col1, col2 = st.columns([3, 1])
+    
+    with col1:
+        st.header(APP_TITLE)
+        st.caption("💬 Ask questions about your documents • 📋 Request summaries • 🌐 Search the web")
+    
+    with col2:
+        # Quick stats if documents are loaded
+        if st.session_state.get("docs") and st.session_state.get("processed_files"):
+            st.metric("📚 Documents", len(st.session_state.processed_files))
+            st.metric("📄 Chunks", len(st.session_state.docs))
+    
+    # Show helpful examples if no documents are loaded
+    if not st.session_state.get("agent_executor"):
+        st.info("""
+        🚀 **Get Started:**
+        1. Add your API keys in the sidebar
+        2. Upload PDF documents  
+        3. Click "Process Documents"
+        4. Start asking questions!
+        
+        **Example questions:**
+        - "What are the main findings?"
+        - "Summarize the key points"
+        - "Search for recent AI developments" (web search)
+        """)
     
     # Display chat history
     render_chat_history()

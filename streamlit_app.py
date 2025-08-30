@@ -2,8 +2,18 @@
 Streamlit application entry point.
 """
 
+
 import sys
 import os
+import logging
+
+# --- Robust logging setup for Streamlit terminal visibility ---
+logging.basicConfig(
+    level=logging.INFO,
+    format='[%(asctime)s] %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler(sys.stdout)],
+    force=True  # Override any previous logging config (including Streamlit's)
+)
 
 # Add the project root directory to the Python path
 # This allows importing the app package from anywhere

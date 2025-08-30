@@ -105,7 +105,7 @@ def compress_context(query: str, docs: List[Document]) -> Tuple[str, List[Dict[s
 
 def generate_answer(llm: ChatGroq, question: str, context: str) -> str:
     """
-    Generate an answer using the LLM based on the context.
+    Generate a markdown-formatted answer using the LLM based on the context.
     
     Args:
         llm (ChatGroq): LLM for answer generation
@@ -113,48 +113,127 @@ def generate_answer(llm: ChatGroq, question: str, context: str) -> str:
         context (str): Compressed context
         
     Returns:
-        str: Generated answer
+        str: Generated answer with markdown formatting
     """
     prompt = PromptTemplate.from_template(
         "You are a precise assistant. Answer ONLY using the provided context.\n"
-        "If the context is insufficient, say: \"I don't know based on the provided documents.\"\n"
-        "Cite support using bracketed numbers like [1], [2].\n\n"
-        "Context:\n{context}\n\nQuestion: {question}\nAnswer:"
+        "Format your response using markdown for better readability:\n"
+        "- Use **bold** for important information\n"
+        "- Use tables when presenting structured data\n"
+        "- Use bullet points for lists\n"
+        "- Use headers (##) for sections if needed\n"
+        "- Cite sources using bracketed numbers like [1], [2]\n\n"
+        "If the context is insufficient, say: \"**I don't know based on the provided documents.**\"\n\n"
+        "IMPORTANT: Do not use the words 'Action' or 'Observation' in your response as they interfere with parsing.\n\n"
+        "Context:\n{context}\n\nQuestion: {question}\n\nAnswer:"
     ).format(question=question, context=context)
+    
     resp = llm.invoke(prompt)
-    return getattr(resp, "content", "").strip()
-
-
-def advanced_rag_search(query: str, llm: ChatGroq) -> Dict[str, Any]:
-    """
-    Execute the complete RAG pipeline for a given query.
+    answer = getattr(resp, "content", "").strip()
     
-    Args:
-        query (str): User query
-        llm (ChatGroq): Language model for generating answers
+    # Only remove triple backticks and ReAct keywords that could cause parsing issues
+    answer = answer.replace("```", "")
+    answer = answer.replace("Action:", "Action_").replace("Observation:", "Observation_")
+    
+    return answer
+
+
+def advanced_rag_search(query: str, llm) -> Dict[str, Any]:
+    """
+    Perform advanced RAG search with multiple retrievers and re-ranking.
+    Enhanced with better error handling and performance tracking.
+    """
+    import time
+    start_time = time.time()
+    
+    try:
+        # Validate inputs
+        if not query.strip():
+            return {
+                "answer": "**Please provide a valid question.**",
+                "citations": [],
+                "confidence": 0.0,
+                "processing_time": 0.0
+            }
         
-    Returns:
-        Dict[str, Any]: Answer and citation metadata
-    """
-    if not st.session_state.get("faiss_index") or not st.session_state.get("bm25_retriever"):
-        return {"answer": "Error: Document indexes are not built. Please process documents first."}
-    
-    # 1. Query Expansion
-    variants = generate_query_variants(llm, query)
-    
-    # 2. Hybrid Retrieval + Fusion
-    candidate_lists = []
-    for v in variants:
-        dense_hits = st.session_state.faiss_index.as_retriever(search_kwargs={"k": 20}).get_relevant_documents(v)
-        sparse_hits = st.session_state.bm25_retriever.get_relevant_documents(v)
-        candidate_lists.append(rrf_fuse([dense_hits, sparse_hits]))
-    fused_candidates = rrf_fuse(candidate_lists)
-    
-    # 3. Reranking
-    reranked_docs = rerank_docs(query, fused_candidates)
-    
-    # 4. Context Compression & Answer Generation
-    context, citations = compress_context(query, reranked_docs)
-    answer = generate_answer(llm, query, context)
-    
-    return {"answer": answer, "citations": citations}
+        # Step 1: Dual retrieval with error handling
+        try:
+            dense_hits = st.session_state.faiss_index.as_retriever(search_kwargs={"k": 20}).invoke(query)
+        except Exception as e:
+            st.warning(f"Vector search failed: {str(e)}")
+            dense_hits = []
+        
+        try:
+            if hasattr(st.session_state.bm25_retriever, 'invoke'):
+                sparse_hits = st.session_state.bm25_retriever.invoke(query)
+            else:
+                sparse_hits = st.session_state.bm25_retriever.get_relevant_documents(query)
+        except Exception as e:
+            st.warning(f"Keyword search failed: {str(e)}")
+            sparse_hits = []
+        
+        # Check if we have any results
+        if not dense_hits and not sparse_hits:
+            return {
+                "answer": "**No relevant documents found.** Try rephrasing your question or check if documents are properly processed.",
+                "citations": [],
+                "confidence": 0.0,
+                "processing_time": time.time() - start_time
+            }
+        
+        # Step 2: Fusion and reranking
+        candidate_lists = rrf_fuse([dense_hits, sparse_hits])
+        
+        if not candidate_lists:
+            return {
+                "answer": "**No relevant content found after processing.** Try a different question.",
+                "citations": [],
+                "confidence": 0.0,
+                "processing_time": time.time() - start_time
+            }
+        
+        # Step 3: Rerank with fallback
+        try:
+            reranked_docs = rerank_docs(query, candidate_lists)
+        except Exception as e:
+            st.warning(f"Reranking failed, using original order: {str(e)}")
+            reranked_docs = candidate_lists[:RERANK_KEEP]
+        
+        # Step 4: Generate answer
+        context, citations = compress_context(query, reranked_docs)
+        
+        if not context.strip():
+            return {
+                "answer": "**No sufficient context found to answer your question.** Try asking about a different topic.",
+                "citations": [],
+                "confidence": 0.0,
+                "processing_time": time.time() - start_time
+            }
+        
+        answer = generate_answer(llm, query, context)
+        
+        # Calculate confidence based on number of relevant docs and reranking scores
+        confidence = min(0.9, len(reranked_docs) / RERANK_KEEP * 0.8 + 0.1)
+        
+        processing_time = time.time() - start_time
+        
+        # Add performance info in debug mode
+        if st.session_state.get("debug_mode", False):
+            answer += f"\n\n*🔍 Retrieved {len(candidate_lists)} documents, reranked top {len(reranked_docs)}, processed in {processing_time:.2f}s*"
+        
+        return {
+            "answer": answer, 
+            "citations": citations,
+            "confidence": confidence,
+            "processing_time": processing_time,
+            "retrieved_docs": len(candidate_lists),
+            "reranked_docs": len(reranked_docs)
+        }
+        
+    except Exception as e:
+        return {
+            "answer": f"**Search Error:** {str(e)}\n\nPlease try rephrasing your question or contact support if the issue persists.",
+            "citations": [],
+            "confidence": 0.0,
+            "processing_time": time.time() - start_time
+        }
