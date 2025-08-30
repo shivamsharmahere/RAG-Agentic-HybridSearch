@@ -36,8 +36,8 @@ The project follows a modular architecture:
 
 1. Clone this repository:
 ```bash
-git clone https://github.com/yourusername/advanced-rag-agent.git
-cd advanced-rag-agent
+git clone https://github.com/shivamsharmahere/RAG-Agentic-HybridSearch.git
+cd RAG-Agentic-HybridSearch
 ```
 
 2. Create a virtual environment:
