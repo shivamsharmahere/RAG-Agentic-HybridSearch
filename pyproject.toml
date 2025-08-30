@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "advanced-rag-agent"
+version = "0.1.0"
+description = "A production-worthy Retrieval-Augmented Generation (RAG) based AI Chatbot"
+readme = "README.md"
+authors = [
+    {name = "RAG Developer", email = "example@example.com"}
+]
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "streamlit>=1.30.0",
+    "python-dotenv>=1.0.0",
+    "langchain>=0.1.0",
+    "langchain-community>=0.0.13",
+    "langchain-groq>=0.1.0",
+    "langchain-core>=0.1.0",
+    "faiss-cpu>=1.7.4",
+    "sentence-transformers>=2.3.1",
+    "pymupdf>=1.23.8",
+    "tavily-python>=0.2.8",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "mypy>=1.0.0",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/yourusername/advanced-rag-agent"
+"Bug Tracker" = "https://github.com/yourusername/advanced-rag-agent/issues"
+
+[tool.black]
+line-length = 100
+target-version = ["py39"]
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true

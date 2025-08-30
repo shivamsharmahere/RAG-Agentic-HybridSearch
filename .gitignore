@@ -1,0 +1,103 @@
+# Python virtual environments
+code_env/
+venv/
+env/
+ENV/
+*.venv
+.env
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# API keys, credentials and other sensitive information
+.env
+*.pem
+credentials.json
+token.json
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Large files and data
+*.hdf5
+*.h5
+*.pkl
+*.bin
+*.vec
+*.csv
+*.sqlite3
+*.db
+*.faiss
+
+# Logs and temporary files
+logs/
+*.log
+tmp/
+temp/
+.temp/
+
+# Document and vector storage
+*.faiss
+*.pkl
+vector_store/
+document_store/
+chroma/

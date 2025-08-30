@@ -1,0 +1,15 @@
+python-dotenv
+langchain-core
+streamlit 
+langchain 
+langchain_community 
+sentence-transformers 
+transformers 
+faiss-cpu 
+pypdf 
+langchain_groq 
+torch 
+accelerate 
+rank_bm25 
+pymupdf 
+tavily-python
