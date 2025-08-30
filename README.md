@@ -1,73 +1,97 @@
-# Advanced RAG Agent 🧠
 
-A production-worthy Retrieval-Augmented Generation (RAG) based AI Chatbot that answers user queries using PDF documents as knowledge sources.
 
-## Features
+---
 
-- **Modular Architecture**: Clean separation of concerns with industry-standard structure
-- **Advanced RAG Pipeline**:
-  - Query expansion with LLM-generated variants
-  - Hybrid retrieval (dense + sparse)
-  - Fusion of results using Reciprocal Rank Fusion (RRF)
-  - Neural reranking with cross-encoders
-  - Context compression and citation tracking
-- **Multi-Tool Agent**: Combines document Q&A, summarization, and web search
-- **Interactive UI**: Clean Streamlit interface with citation view
-- **Flexibility**: Easy to swap out components (embeddings, models, etc.)
+## 🧩 Customization & Extension
 
-## Architecture
+### Swap LLMs
+- Install your preferred LLM package (e.g., `pip install langchain-openai`)
+- Edit `app/models/model_loader.py` to use your LLM
 
-The project follows a modular architecture:
+### Change Embeddings
+- Edit `app/models/embeddings.py` to use a different embedding model
+- Update the document processor if needed
 
-- **app/config/**: Application constants and configuration
-- **app/core/**: Core RAG pipeline and agent functionality
-- **app/models/**: Model implementations and loaders
-- **app/ui/**: UI components and handlers
-- **app/utils/**: Utility functions and helpers
+### Add New Tools
+- Add a new function in `app/core/agent.py`
+- Register it in the agent's tool routing logic
 
-## Prerequisites
+---
 
-- Python 3.9+
-- API keys:
-  - GROQ API key (for LLM access)
-  - Tavily API key (for web search capabilities)
+## � Configuration
 
-## Setup
+- **Chunk Size/Overlap**: Adjustable in the sidebar
+- **API Keys**: Set via `.env` or sidebar
+- **Constants**: See `app/config/constants.py`
+- **Logging**: All agent actions and errors are logged to the terminal
 
-1. Clone this repository:
-```bash
-git clone https://github.com/shivamsharmahere/RAG-Agentic-HybridSearch.git
-cd RAG-Agentic-HybridSearch
-```
+---
 
-2. Create a virtual environment:
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
+## 🛡️ Troubleshooting & FAQ
 
-3. Install requirements:
-```bash
-pip install -r requirements.txt
-```
+- **No answer returned?**
+  - Ensure documents are processed and API keys are set
+  - Check terminal logs for errors
+- **Web search not working?**
+  - Verify your Tavily API key
+- **Slow performance?**
+  - Use smaller PDFs or reduce chunk size
+- **Logs not visible?**
+  - Make sure you start Streamlit from a terminal, not from an IDE run button
 
-4. Create a `.env` file in the project root:
-```
-GROQ_API_KEY=your_groq_api_key_here
-TAVILY_API_KEY=your_tavily_api_key_here
-```
+---
 
-## Usage
+## 🤝 Contributing
 
-1. Start the Streamlit application:
-```bash
-streamlit run streamlit_app.py
-```
+1. Fork the repo and create your branch (`git checkout -b feature/your-feature`)
+2. Commit your changes (`git commit -am 'Add new feature'`)
+3. Push to the branch (`git push origin feature/your-feature`)
+4. Open a Pull Request
 
-2. Upload PDF documents via the sidebar.
+Please follow [PEP8](https://peps.python.org/pep-0008/) and use `black`/`isort` for formatting.
 
-3. Configure chunk size and overlap as needed.
+---
 
+## 📄 License
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
+---
+
+## � Contact
+
+- Project Maintainer: [RAG Developer](mailto:example@example.com)
+- [GitHub Issues](https://github.com/shivamsharmahere/RAG-Agentic-HybridSearch/issues) for bug reports and feature requests
+  ```
+3. **Install dependencies:**
+  ```bash
+  pip install -r requirements.txt
+  ```
+4. **Configure API keys:**
+  - Create a `.env` file in the project root:
+    ```
+    GROQ_API_KEY=your_groq_api_key_here
+    TAVILY_API_KEY=your_tavily_api_key_here
+    ```
+
+---
+
+## 🚦 Usage
+
+1. **Start the Streamlit app:**
+  ```bash
+  streamlit run streamlit_app.py
+  ```
+2. **Upload PDF documents** via the sidebar.
+3. **Configure chunk size and overlap** as needed.
+4. **Click "Process Documents"** to build the knowledge base.
+5. **Ask questions** in the chat interface!
+
+### Example Questions
+- "What is the summary of all documents?"
+- "What is the phone number in the contract?"
+- "Summarize the main findings."
+- "Search for recent AI news."
 4. Click "Process Documents" to build the knowledge base.
 
 5. Ask questions in the chat interface!

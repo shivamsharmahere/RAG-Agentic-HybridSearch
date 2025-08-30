@@ -7,10 +7,12 @@ name = "advanced-rag-agent"
 version = "0.1.0"
 description = "A production-worthy Retrieval-Augmented Generation (RAG) based AI Chatbot"
 readme = "README.md"
+license = {text = "MIT"}
 authors = [
     {name = "RAG Developer", email = "example@example.com"}
 ]
 requires-python = ">=3.9"
+keywords = ["rag", "chatbot", "ai", "retrieval-augmented-generation", "streamlit", "langchain"]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",
@@ -40,9 +42,10 @@ dev = [
     "mypy>=1.0.0",
 ]
 
+
 [project.urls]
-"Homepage" = "https://github.com/yourusername/advanced-rag-agent"
-"Bug Tracker" = "https://github.com/yourusername/advanced-rag-agent/issues"
+homepage = "https://github.com/yourusername/advanced-rag-agent"
+bugtracker = "https://github.com/yourusername/advanced-rag-agent/issues"
 
 [tool.black]
 line-length = 100
