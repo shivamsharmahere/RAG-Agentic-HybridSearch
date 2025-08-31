@@ -1,19 +1,22 @@
 """
-Agent and tool configuration for the RAG system.
+Production-ready RAG Agent with ReAct architecture.
+Outputs are markdown-compatible and suitable for Streamlit UI.
 """
 
-
-from typing import Dict, Any
-import streamlit as st
-import logging
 import sys
+import logging
+import streamlit as st
+from typing import Dict, Any
 
-from langchain_community.tools.tavily_search import TavilySearchResults
+from langchain.agents import AgentExecutor, create_react_agent, Tool
+from langchain import hub
 from langchain.memory import ConversationBufferMemory
 from langchain.schema import Document
+from langchain_community.tools.tavily_search import TavilySearchResults
 from langchain_groq import ChatGroq
 
 from app.core.rag_pipeline import advanced_rag_search
+
 
 # --- Logging setup ---
 logger = logging.getLogger("rag_agent")
@@ -25,239 +28,159 @@ if not logger.hasHandlers():
     logger.addHandler(handler)
 
 
-def create_agent_and_tools(llm: ChatGroq, memory, tavily_api_key: str) -> Dict[str, Any]:
+# --- Tool 1: Advanced RAG Tool ---
+def advanced_rag_tool(query: str) -> str:
     """
-    Create a simplified direct tool executor for the RAG application.
-    Bypasses ReAct framework complexity since our tools already return well-formatted markdown.
-    
-    Args:
-        llm (ChatGroq): Language model for the agent
-        memory: Conversation memory for the agent
-        tavily_api_key (str): API key for Tavily search
-        
-    Returns:
-        Dict[str, Any]: Tool executor with direct tool access
+    Enhanced tool for answering questions from documents.
+    Returns markdown-formatted answer with confidence indicators.
     """
-    
-    def advanced_rag_tool(query: str) -> str:
-        """
-        Enhanced tool for answering questions from documents.
-        Returns a markdown-formatted answer with better error handling.
-        Logs all actions to the terminal.
-        """
-        logger.info(f"[Advanced_Document_QA] Received query: {query}", extra=None, stacklevel=1)
-        sys.stdout.flush()
-        try:
-            # Validate query
-            if not query.strip():
-                logger.warning("[Advanced_Document_QA] Empty query received.", extra=None, stacklevel=1)
-                sys.stdout.flush()
-                return "**Please provide a valid question.**"
-            # Check if indexes are available
-            if not st.session_state.get("faiss_index") or not st.session_state.get("bm25_retriever"):
-                logger.error("[Advanced_Document_QA] Document indexes are not built.", extra=None, stacklevel=1)
-                sys.stdout.flush()
-                return "**Error:** Document indexes are not built. Please upload and process documents first."
-            # Check if documents exist
-            if not st.session_state.get("docs"):
-                logger.error("[Advanced_Document_QA] No documents available.", extra=None, stacklevel=1)
-                sys.stdout.flush()
-                return "**Error:** No documents available. Please upload PDF files and click 'Process Documents'."
-            # Get the full result from RAG pipeline
-            logger.info(f"[Advanced_Document_QA] Running RAG pipeline for query: {query}", extra=None, stacklevel=1)
-            sys.stdout.flush()
-            rag_result = advanced_rag_search(query, llm)
-            # Store the full result in session state for UI access
-            st.session_state.latest_rag_result = rag_result
-            # Extract answer with confidence indicator
-            answer = rag_result.get("answer", "I could not find an answer in the documents.")
-            confidence = rag_result.get("confidence", 0.0)
-            logger.info(f"[Advanced_Document_QA] RAG pipeline completed. Confidence: {confidence}", extra=None, stacklevel=1)
-            sys.stdout.flush()
-            # Add confidence indicator for user feedback
-            if confidence > 0.7:
-                confidence_indicator = "🟢 High confidence"
-            elif confidence > 0.4:
-                confidence_indicator = "🟡 Medium confidence"
-            else:
-                confidence_indicator = "🔴 Low confidence - consider rephrasing your question"
-            # Only clean problematic characters that break ReAct, but preserve markdown
-            cleaned_answer = answer.replace("```", "").replace("Action:", "Action_").replace("Observation:", "Observation_")
-            # Add confidence info if not already in debug mode
-            if not st.session_state.get("debug_mode", False) and confidence > 0:
-                cleaned_answer += f"\n\n*{confidence_indicator}*"
-            logger.info(f"[Advanced_Document_QA] Returning answer to user.", extra=None, stacklevel=1)
-            sys.stdout.flush()
-            return cleaned_answer
-        except Exception as e:
-            logger.exception(f"[Advanced_Document_QA] Error occurred while searching documents: {str(e)}", extra=None, stacklevel=1)
-            sys.stdout.flush()
-            error_msg = f"**Error occurred while searching documents:** {str(e)}"
-            if st.session_state.get("debug_mode", False):
-                error_msg += f"\n\n*Debug info: Query='{query}', Session state keys: {list(st.session_state.keys())}*"
-            return error_msg
-    
-    def summarize_tool(_: str) -> str:
-        """Enhanced tool for creating beautifully formatted document summaries with token management."""
-        try:
-            if not st.session_state.get("docs"): 
-                return "**No documents are loaded to summarize.**"
-            
-            # Chunk documents to fit within token limits
-            def chunk_documents(docs, max_tokens=500):  # Conservative limit
-                chunked_docs = []
-                for doc in docs:
-                    content = doc.page_content
-                    words = content.split()
-                    
-                    # Split into smaller chunks if content is too long
-                    if len(words) > max_tokens:
-                        for i in range(0, len(words), max_tokens):
-                            chunk_content = " ".join(words[i:i + max_tokens])
-                            chunked_doc = Document(
-                                page_content=chunk_content,
-                                metadata=doc.metadata.copy()
-                            )
-                            chunked_docs.append(chunked_doc)
-                    else:
-                        chunked_docs.append(doc)
-                
-                return chunked_docs
-            
-            # Create chunked documents
-            chunked_docs = chunk_documents(st.session_state.docs)
-            
-            # Use a simpler, more direct approach to avoid token issues
-            summaries = []
-            doc_count = len(st.session_state.docs)
-            
-            # Process documents in small batches
-            batch_size = 2  # Process 2 documents at a time
-            
-            for i in range(0, min(len(chunked_docs), 6), batch_size):  # Limit to first 6 chunks
-                batch = chunked_docs[i:i + batch_size]
-                
-                # Create a shorter context for each batch
-                batch_content = ""
-                for doc in batch:
-                    # Limit each document to 150 words
-                    words = doc.page_content.split()[:150]
-                    content = " ".join(words)
-                    file_name = doc.metadata.get('file_name', 'document')
-                    batch_content += f"\n**{file_name}**: {content}...\n"
-                
-                # Summarize this batch with a simple prompt
-                prompt = f"""Summarize the following content in 2-3 key bullet points:
+    logger.info(f"[Advanced_Document_QA] Received query: {query}")
+    try:
+        if not query.strip():
+            return "**Please provide a valid question.**"
 
-{batch_content}
+        if not st.session_state.get("faiss_index") or not st.session_state.get("bm25_retriever"):
+            return "**Error:** Document indexes are not built. Please upload and process documents first."
 
-Summary (use bullet points):"""
-                
-                try:
-                    response = llm.invoke(prompt)
-                    batch_summary = getattr(response, "content", "").strip()
-                    if batch_summary:
-                        summaries.append(batch_summary)
-                except Exception as e:
-                    summaries.append(f"**Error summarizing batch {i//batch_size + 1}:** {str(e)}")
-            
-            # Combine all summaries
-            total_pages = sum(1 for doc in st.session_state.docs if doc.metadata.get('page') is not None)
-            
-            final_summary = f"""## 📚 Document Collection Summary
+        if not st.session_state.get("docs"):
+            return "**Error:** No documents available. Please upload PDF files and click 'Process Documents'."
 
-**📊 Collection Stats:**
-- **Total Documents:** {doc_count}
-- **Total Pages:** {total_pages if total_pages > 0 else 'N/A'}
-- **Generated:** Recently
+        # Run full RAG pipeline
+        rag_result = advanced_rag_search(query, st.session_state.llm)
+        st.session_state.latest_rag_result = rag_result
 
-## 📄 Key Points from Documents
+        answer = rag_result.get("answer", "I could not find an answer in the documents.")
+        confidence = rag_result.get("confidence", 0.0)
 
-{chr(10).join(summaries)}
+        # Confidence indicator
+        if confidence > 0.7:
+            confidence_indicator = "🟢 High confidence"
+        elif confidence > 0.4:
+            confidence_indicator = "🟡 Medium confidence"
+        else:
+            confidence_indicator = "🔴 Low confidence — consider rephrasing your question"
 
----
+        # Sanitize output for ReAct (preserve markdown)
+        cleaned_answer = (
+            answer.replace("```", "")
+                  .replace("Action:", "Action_")
+                  .replace("Observation:", "Observation_")
+        )
 
-*💡 Tip: Ask specific questions about any topic mentioned above for detailed information.*
-"""
-            
-            return final_summary
-            
-        except Exception as e:
-            return f"**❌ Error occurred while summarizing:** {str(e)}"
-    
-    def web_search_tool(query: str) -> str:
-        """Enhanced web search tool using Tavily API."""
-        try:
-            tavily_search = TavilySearchResults(max_results=3, api_key=tavily_api_key)
-            results = tavily_search.invoke(query)
-            
-            if not results or not isinstance(results, list):
-                return "**No web search results found.** Please try a different search term."
-            
-            # Format results as markdown
-            formatted_results = "## 🌐 Web Search Results\n\n"
-            for i, result in enumerate(results, 1):
-                title = result.get('title', 'No title')
-                content = result.get('content', 'No content available')
-                url = result.get('url', '')
-                
-                formatted_results += f"### [{i}] {title}\n\n"
-                formatted_results += f"{content[:300]}{'...' if len(content) > 300 else ''}\n\n"
-                if url:
-                    formatted_results += f"🔗 [View Source]({url})\n\n"
-                formatted_results += "---\n\n"
-            
-            # Store web results in session state for UI citations
-            st.session_state.latest_web_results = results
-            
-            return formatted_results
-            
-        except Exception as e:
-            return f"**Web search error:** {str(e)}"
-    
-    # Simple tool routing logic
-    def execute_query(query: str) -> str:
-        """
-        Simple query router that directly calls the appropriate tool.
-        Much cleaner than ReAct framework for our use case.
-        """
-        query_lower = query.lower().strip()
-        
-        # Handle greetings
-        if any(greeting in query_lower for greeting in ["hello", "hi", "hey", "good morning", "good afternoon", "good evening", "how are you"]):
-            return "Hello! I'm here to help you with your document questions. You can ask me about specific topics in your documents, request summaries, or search the web."
-        
-        # Handle summary requests
-        if any(keyword in query_lower for keyword in ["summarize", "summary", "overview", "what's in", "what is in", "contents of"]):
-            return summarize_tool(query)
-        
-        # Handle web search requests
-        if any(keyword in query_lower for keyword in ["search", "web", "internet", "online", "latest", "current", "recent", "news"]):
-            return web_search_tool(query)
-        
-        # Default to document Q&A
-        return advanced_rag_tool(query)
-    
-    # Return a simple executor object
-    class SimpleToolExecutor:
-        def __init__(self, execute_func):
-            self.execute_func = execute_func
-            self.memory = memory
-        
-        def invoke(self, input_dict: Dict[str, str]) -> Dict[str, Any]:
-            """Execute the query and return results in expected format."""
-            query = input_dict.get("input", "")
-            
-            # Execute the appropriate tool
-            result = self.execute_func(query)
-            
-            # Add to memory
-            self.memory.chat_memory.add_user_message(query)
-            self.memory.chat_memory.add_ai_message(result)
-            
-            return {
-                "output": result,
-                "intermediate_steps": []  # Empty since we don't use ReAct steps
-            }
-    
-    return SimpleToolExecutor(execute_query)
+        if confidence > 0:
+            cleaned_answer += f"\n\n*{confidence_indicator}*"
+
+        return cleaned_answer
+
+    except Exception as e:
+        logger.exception(f"[Advanced_Document_QA] Error: {str(e)}")
+        error_msg = f"**Error occurred while searching documents:** {str(e)}"
+        if st.session_state.get("debug_mode", False):
+            error_msg += f"\n\n*Debug info: Query='{query}', Session keys={list(st.session_state.keys())}*"
+        return error_msg
+
+
+# --- Tool 2: Summarization Tool ---
+def summarize_tool(_: str) -> str:
+    """
+    Summarizes loaded documents into key points.
+    Handles token limits by chunking docs.
+    """
+    try:
+        if not st.session_state.get("docs"):
+            return "**No documents are loaded to summarize.**"
+
+        docs = st.session_state.docs
+
+        # Limit content length for safety
+        summaries = []
+        for i, doc in enumerate(docs[:5], start=1):  # only first 5 docs
+            content = " ".join(doc.page_content.split()[:200])  # limit words
+            prompt = f"""Summarize the following document in 3 concise bullet points:
+
+Document excerpt:
+{content}
+
+Summary (markdown bullets):"""
+
+            response = st.session_state.llm.invoke(prompt)
+            batch_summary = getattr(response, "content", "").strip()
+            if batch_summary:
+                summaries.append(f"### 📄 Document {i}\n{batch_summary}")
+
+        return "## 📚 Document Summaries\n\n" + "\n\n".join(summaries)
+
+    except Exception as e:
+        return f"**❌ Error occurred while summarizing:** {str(e)}"
+
+
+# --- Tool 3: Web Search Tool ---
+def web_search_tool(query: str) -> str:
+    """
+    Performs a Tavily web search and formats results in markdown.
+    """
+    try:
+        tavily_search = TavilySearchResults(max_results=3, api_key=st.session_state.get("tavily_api_key"))
+        results = tavily_search.invoke(query)
+
+        if not results or not isinstance(results, list):
+            return "**No web search results found.** Please try a different search term."
+
+        formatted_results = "## 🌐 Web Search Results\n\n"
+        for i, result in enumerate(results, 1):
+            title = result.get('title', 'No title')
+            content = result.get('content', 'No content available')
+            url = result.get('url', '')
+
+            formatted_results += f"### [{i}] {title}\n\n"
+            formatted_results += f"{content[:300]}{'...' if len(content) > 300 else ''}\n\n"
+            if url:
+                formatted_results += f"🔗 [View Source]({url})\n\n"
+            formatted_results += "---\n\n"
+
+        st.session_state.latest_web_results = results
+        return formatted_results
+
+    except Exception as e:
+        return f"**Web search error:** {str(e)}"
+
+
+# --- Agent Creation ---
+def create_agent_and_tools(llm: ChatGroq, memory: ConversationBufferMemory, tavily_api_key: str):
+    """
+    Creates a ReAct agent with tools for Advanced RAG, summarization, and web search.
+    Ensures outputs are markdown-compatible.
+    """
+    st.session_state.llm = llm
+    st.session_state.tavily_api_key = tavily_api_key
+
+    tools = [
+        Tool(
+            name="Advanced_Document_QA",
+            func=advanced_rag_tool,
+            description="Answer questions about uploaded PDF documents."
+        ),
+        Tool(
+            name="Summarize_Documents",
+            func=summarize_tool,
+            description="Summarize the content of the uploaded documents."
+        ),
+        Tool(
+            name="Web_Search",
+            func=web_search_tool,
+            description="Search the web for recent or external information."
+        ),
+    ]
+
+    # Use LangChain Hub’s standard ReAct chat prompt
+    prompt = hub.pull("hwchase17/react-chat")
+
+    agent = create_react_agent(llm, tools, prompt)
+
+    return AgentExecutor(
+        agent=agent,
+        tools=tools,
+        verbose=True,
+        memory=memory,
+        handle_parsing_errors="⚠️ I had trouble processing that request. Please try rephrasing."
+    )
