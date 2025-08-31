@@ -199,15 +199,4 @@ Recommended CI steps:
 
 Follow PEP8 and keep changes small and reviewable.
 
----
 
-## License
-
-This project is licensed under the MIT License. See the `LICENSE` file for details.
-
----
-
-## Contact
-
-- Maintainer: RAG Developer <example@example.com>
-- Issues: https://github.com/shivamsharmahere/RAG-Agentic-HybridSearch/issues
