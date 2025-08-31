@@ -1,61 +1,6 @@
+# Advanced RAG Agent 🧠
 
-
----
-
-## 🧩 Customization & Extension
-
-### Swap LLMs
-- Install your preferred LLM package (e.g., `pip install langchain-openai`)
-- Edit `app/models/model_loader.py` to use your LLM
-
-### Change Embeddings
-- Edit `app/models/embeddings.py` to use a different embedding model
-- Update the document processor if needed
-
-### Add New Tools
-- Add a new function in `app/core/agent.py`
-- Register it in the agent's tool routing logic
-
----
-
-## � Configuration
-
-<!--
-  RAG-Agentic-HybridSearch
-  A compact RAG reference app combining FAISS, BM25, RRF fusion, and a deterministic tool executor.
--->
-
-# RAG-Agentic-HybridSearch
-
-RAG-Agentic-HybridSearch is a small, modular Retrieval-Augmented Generation (RAG)
-reference implementation. It provides a Streamlit chat interface to ask questions over
-uploaded PDF documents and (optionally) live web search results. The project focuses on
-deterministic, markdown-friendly answers, observable terminal logs, and an easy-to-extend
-code structure.
-
-Highlights:
-- In-memory FAISS vector store + BM25 sparse retriever
-- Reciprocal Rank Fusion (RRF) + optional reranking for high-quality candidates
-- Lightweight executor that returns direct Markdown answers (no complex ReAct loops)
-- Streamlit UI with processing progress, chat history, and citation display
-
----
-
-## Table of contents
-
-- Features
-- Architecture overview
-- Quickstart (Windows)
-- Common workflows
-- Configuration & tuning
-- Development notes
-- Troubleshooting
-- Security & privacy
-- Roadmap
-- Contributing
-- License
-
----
+A production-worthy Retrieval-Augmented Generation (RAG) based AI Chatbot that answers user queries using PDF documents as knowledge sources.
 
 ## Features
 
@@ -127,6 +72,59 @@ Notes:
 - Combine web + docs: use the web search tool (requires Tavily key) to include fresh web context.
 
 ---
+
+## Assignment: Five Levels (mapping to this repo)
+
+Below is a concise mapping of the assignment's five levels to the current codebase. Each level shows status, the files to inspect, quick demo steps, and short notes about limitations or next steps to reach a full "production" implementation.
+
+### Level 1 — PDF RAG with Semantic Search
+- Status: Done
+- What is implemented: PDF parsing, text splitting, embeddings, FAISS vector store, top-k retrieval, and LLM answer generation.
+- Key files: `app/core/document_processor.py`, `app/models/embeddings.py`, `app/models/model_loader.py`, `app/core/rag_pipeline.py`
+- How to demo:
+  1. Start Streamlit: `streamlit run streamlit_app.py`
+  2. Upload one or more PDFs in the sidebar and click "Process Documents"
+  3. Ask a question in the chat box; the RAG pipeline will retrieve and answer.
+- Notes: Works out-of-the-box after installing dependencies and setting GROQ API key.
+
+### Level 2 — Production-Ready RAG with LangChain (modular pipeline)
+- Status: Done (modularized)
+- What is implemented: LangChain components are used (document loaders, text splitter, retrievers, and prompt templates). The project is organized into modular components (document processing, retrieval pipeline, agent/tools, UI).
+- Key files: `app/core/document_processor.py`, `app/core/rag_pipeline.py`, `app/core/agent.py`, `app/ui/components.py`, `app/main.py`
+- How to demo: same as Level 1; monitor logs in the terminal to see index-building and pipeline steps.
+- Notes: Pipeline is modular but still tightly integrated with Streamlit session state; decoupling logic from UI will improve testability.
+
+### Level 3 — Conversational Memory Support
+- Status: Partial / Done (basic support)
+- What is implemented: Chat history and a memory object are present; user and assistant messages are appended to `st.session_state.chat_history`, and the executor writes to `memory.chat_memory` when invoking tools.
+- Key files: `app/core/agent.py`, `app/ui/components.py`, `app/main.py`, `app/utils/session_state.py` (initialization)
+- How to demo:
+  1. Process documents.
+  2. Ask a question, then ask a follow-up that refers to prior context; the UI shows chat history and the executor keeps a memory buffer.
+- Notes: Memory is present but relatively simple (ConversationBuffer). For advanced conversational behavior (long-term memory, retrieval-augmented memory), consider integrating a persistent conversation store or more structured memory chains.
+
+### Level 4 — Metadata Tagging and Filtering
+- Status: Done
+- What is implemented: Document metadata (file name, page, chunk info) is attached at ingestion; compression returns citation metadata and the UI displays citations with file and page information.
+- Key files: `app/core/document_processor.py`, `app/core/rag_pipeline.py`, `app/ui/components.py`
+- How to demo:
+  1. Upload multiple PDFs with different names.
+  2. Ask a question that should be answered by a specific document; inspect the Sources/expander to see file/page citations.
+- Notes: Metadata extraction is available. If you need advanced filters (restrict to one document by name or date ranges), add metadata-based filtering hooks into the retrievers before fusion.
+
+### Level 5 — Agent-based Chatbot with Tool Use
+- Status: Partial
+- What is implemented: A simplified tool executor (`SimpleToolExecutor`) routes queries to document QA, summarizer, or web search tools. It provides deterministic Markdown outputs and logging. This intentionally bypasses the full LangChain ReAct agent to avoid ReAct parsing complexity.
+- Key files: `app/core/agent.py`, `app/core/rag_pipeline.py`, `app/ui/components.py`
+- How to demo:
+  1. Upload documents and process.
+  2. Ask high-level queries like "Summarize the documents" or "Search the web for latest X" to see tool routing.
+- Notes & gaps: The current executor is simpler than a full LangChain AgentExecutor. To meet the assignment's Level 5 expectations strictly (dynamic tool selection, multi-step chaining using LangChain agents), either:
+  - Reintroduce LangChain agents (AgentExecutor + tools) with structured tool outputs and a safe prompt template, or
+  - Enhance `SimpleToolExecutor` to support multi-step plans and an action-observation loop with robust parsing and fallbacks.
+
+---
+
 
 ## Configuration & tuning
 
