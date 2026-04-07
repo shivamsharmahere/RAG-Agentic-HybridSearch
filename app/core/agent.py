@@ -5,6 +5,7 @@ Outputs are markdown-compatible and suitable for Streamlit UI.
 
 import sys
 import logging
+import re
 import streamlit as st
 from typing import Dict, Any
 
@@ -39,7 +40,9 @@ def advanced_rag_tool(query: str) -> str:
         if not query.strip():
             return "**Please provide a valid question.**"
 
-        if not st.session_state.get("faiss_index") or not st.session_state.get("bm25_retriever"):
+        if not st.session_state.get("faiss_index") or not st.session_state.get(
+            "bm25_retriever"
+        ):
             return "**Error:** Document indexes are not built. Please upload and process documents first."
 
         if not st.session_state.get("docs"):
@@ -49,7 +52,9 @@ def advanced_rag_tool(query: str) -> str:
         rag_result = advanced_rag_search(query, st.session_state.llm)
         st.session_state.latest_rag_result = rag_result
 
-        answer = rag_result.get("answer", "I could not find an answer in the documents.")
+        answer = rag_result.get(
+            "answer", "I could not find an answer in the documents."
+        )
         confidence = rag_result.get("confidence", 0.0)
 
         # Confidence indicator
@@ -58,14 +63,23 @@ def advanced_rag_tool(query: str) -> str:
         elif confidence > 0.4:
             confidence_indicator = "🟡 Medium confidence"
         else:
-            confidence_indicator = "🔴 Low confidence — consider rephrasing your question"
+            confidence_indicator = (
+                "🔴 Low confidence — consider rephrasing your question"
+            )
 
         # Sanitize output for ReAct (preserve markdown)
-        cleaned_answer = (
-            answer.replace("```", "")
-                  .replace("Action:", "Action_")
-                  .replace("Observation:", "Observation_")
-        )
+        # Only replace at the beginning of lines followed by space to avoid false positives
+        import re
+
+        cleaned_answer = re.sub(
+            r"^```.*$", "", answer, flags=re.MULTILINE
+        )  # Remove code blocks
+        cleaned_answer = re.sub(
+            r"^Action:\s", "Action_: ", cleaned_answer, flags=re.MULTILINE
+        )  # Only at line start
+        cleaned_answer = re.sub(
+            r"^Observation:\s", "Observation_: ", cleaned_answer, flags=re.MULTILINE
+        )  # Only at line start
 
         if confidence > 0:
             cleaned_answer += f"\n\n*{confidence_indicator}*"
@@ -120,20 +134,26 @@ def web_search_tool(query: str) -> str:
     Performs a Tavily web search and formats results in markdown.
     """
     try:
-        tavily_search = TavilySearchResults(max_results=3, api_key=st.session_state.get("tavily_api_key"))
+        tavily_search = TavilySearchResults(
+            max_results=3, api_key=st.session_state.get("tavily_api_key")
+        )
         results = tavily_search.invoke(query)
 
         if not results or not isinstance(results, list):
-            return "**No web search results found.** Please try a different search term."
+            return (
+                "**No web search results found.** Please try a different search term."
+            )
 
         formatted_results = "## 🌐 Web Search Results\n\n"
         for i, result in enumerate(results, 1):
-            title = result.get('title', 'No title')
-            content = result.get('content', 'No content available')
-            url = result.get('url', '')
+            title = result.get("title", "No title")
+            content = result.get("content", "No content available")
+            url = result.get("url", "")
 
             formatted_results += f"### [{i}] {title}\n\n"
-            formatted_results += f"{content[:300]}{'...' if len(content) > 300 else ''}\n\n"
+            formatted_results += (
+                f"{content[:300]}{'...' if len(content) > 300 else ''}\n\n"
+            )
             if url:
                 formatted_results += f"🔗 [View Source]({url})\n\n"
             formatted_results += "---\n\n"
@@ -146,7 +166,9 @@ def web_search_tool(query: str) -> str:
 
 
 # --- Agent Creation ---
-def create_agent_and_tools(llm: ChatGroq, memory: ConversationBufferMemory, tavily_api_key: str):
+def create_agent_and_tools(
+    llm: ChatGroq, memory: ConversationBufferMemory, tavily_api_key: str
+):
     """
     Creates a ReAct agent with tools for Advanced RAG, summarization, and web search.
     Ensures outputs are markdown-compatible.
@@ -158,17 +180,17 @@ def create_agent_and_tools(llm: ChatGroq, memory: ConversationBufferMemory, tavi
         Tool(
             name="Advanced_Document_QA",
             func=advanced_rag_tool,
-            description="Answer questions about uploaded PDF documents."
+            description="Answer questions about uploaded PDF documents.",
         ),
         Tool(
             name="Summarize_Documents",
             func=summarize_tool,
-            description="Summarize the content of the uploaded documents."
+            description="Summarize the content of the uploaded documents.",
         ),
         Tool(
             name="Web_Search",
             func=web_search_tool,
-            description="Search the web for recent or external information."
+            description="Search the web for recent or external information.",
         ),
     ]
 
@@ -182,5 +204,5 @@ def create_agent_and_tools(llm: ChatGroq, memory: ConversationBufferMemory, tavi
         tools=tools,
         verbose=True,
         memory=memory,
-        handle_parsing_errors="⚠️ I had trouble processing that request. Please try rephrasing."
+        handle_parsing_errors="⚠️ I had trouble processing that request. Please try rephrasing.",
     )
