@@ -1,5 +1,12 @@
 """
 Model loading and caching functions.
+
+This module provides cached model loading for:
+- Cross-encoder reranker (BGE reranker)
+- Groq LLM (ChatGroq)
+
+Models are cached using Streamlit's @st.cache_resource decorator to avoid
+reloading on every interaction, which significantly improves performance.
 """
 
 import streamlit as st
@@ -11,7 +18,7 @@ from langchain_groq import ChatGroq
 def get_reranker() -> CrossEncoder:
     """
     Load and cache the reranker model.
-    
+
     Returns:
         CrossEncoder: The loaded cross-encoder model for reranking
     """
@@ -22,16 +29,12 @@ def get_reranker() -> CrossEncoder:
 def get_llm(groq_api_key: str, model_name: str = "llama3-8b-8192") -> ChatGroq:
     """
     Initialize the LLM with Groq API.
-    
+
     Args:
         groq_api_key (str): API key for Groq
         model_name (str): The name of the model to use.
-        
+
     Returns:
         ChatGroq: Initialized LLM model
     """
-    return ChatGroq(
-        temperature=0.1, 
-        groq_api_key=groq_api_key, 
-        model_name=model_name
-    )
+    return ChatGroq(temperature=0.1, groq_api_key=groq_api_key, model_name=model_name)

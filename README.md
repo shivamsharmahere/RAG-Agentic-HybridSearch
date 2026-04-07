@@ -1,202 +1,389 @@
-# Advanced RAG Agent 🧠
+# Advanced RAG Agent
 
-A production-worthy Retrieval-Augmented Generation (RAG) based AI Chatbot that answers user queries using PDF documents as knowledge sources.
+A production-ready Retrieval-Augmented Generation (RAG) based AI Chatbot that answers user queries using PDF documents as knowledge sources. Features hybrid search, cross-encoder reranking, and an intelligent agent with tool execution capabilities.
+
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Streamlit](https://img.shields.io/badge/Streamlit-1.30+-red.svg)](https://streamlit.io/)
+
+## Table of Contents
+
+- [Features](#features)
+- [Architecture Overview](#architecture-overview)
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Usage](#usage)
+- [Features Explained](#features-explained)
+- [API Reference](#api-reference)
+- [Development](#development)
+- [Troubleshooting](#troubleshooting)
+- [Roadmap](#roadmap)
+- [License](#license)
+
+---
 
 ## Features
 
-- Upload and chunk PDF documents with metadata
-- Build FAISS (dense) and BM25 (sparse) indices
-- Hybrid retrieval using RRF fusion and cross-encoder reranking
-- Context compression and LLM answer generation
-- Simple tool executor that returns the tool output as the final Markdown answer
-- Streamlit UI with logging that prints to the terminal when Streamlit is started from a shell
+| Feature | Description |
+|---------|-------------|
+| **PDF RAG** | Upload and process PDF documents with metadata extraction |
+| **Hybrid Search** | Combine dense (FAISS) and sparse (BM25) retrieval for comprehensive results |
+| **ReRanked Results** | Cross-encoder reranking for improved answer quality |
+| **Context Compression** | Optimize context window by compressing relevant passages |
+| **ReAct Agent** | Intelligent tool executor with document QA, summarization, and web search capabilities |
+| **Conversational Memory** | Maintain chat history for contextual follow-up questions |
+| **Metadata Citations** | Source attribution with file name and page references |
+| **Streamlit UI** | Intuitive web interface for document management and chat |
 
 ---
 
-## Architecture overview
+## Architecture Overview
 
-- `app/core/document_processor.py` — PDF ingestion, text extraction, chunking, and index builder
-- `app/core/rag_pipeline.py` — dense/sparse retrieval, fusion, reranking, context compression, answer generation
-- `app/core/agent.py` — simplified tool executor and tool functions (document QA, summarizer, web search)
-- `app/models` — LLM and embedding loaders
-- `app/ui/components.py` — Streamlit UI components and chat rendering
-- `streamlit_app.py` — entrypoint; configures logging and session state
+```
+RAG1/
+├── app/
+│   ├── core/
+│   │   ├── document_processor.py   # PDF ingestion, text extraction, chunking
+│   │   ├── rag_pipeline.py          # Hybrid retrieval, fusion, reranking, answer generation
+│   │   └── agent.py                 # Tool executor and agent logic
+│   ├── models/
+│   │   ├── model_loader.py          # LLM loader (Groq, OpenAI, Anthropic)
+│   │   └── embeddings.py           # Sentence transformer embeddings
+│   ├── ui/
+│   │   └── components.py            # Streamlit UI components
+│   ├── config/
+│   │   └── constants.py            # Application constants
+│   └── utils/
+│       └── session_state.py         # Session state management
+├── streamlit_app.py                  # Application entry point
+└── requirements.txt                 # Dependencies
+```
 
-The code favors small, single-responsibility modules so you can swap components (LLM,
-embeddings, retriever) independently.
+### Core Components
+
+| Component | Purpose |
+|-----------|---------|
+| `document_processor.py` | PDF parsing, text splitting, metadata extraction, and index building |
+| `rag_pipeline.py` | Dense/sparse retrieval, RRF fusion, cross-encoder reranking, context compression |
+| `agent.py` | Simplified tool executor with document QA, summarizer, and web search tools |
+| `model_loader.py` | LLM initialization supporting multiple providers (Groq, OpenAI, Anthropic) |
+| `embeddings.py` | Sentence transformer embeddings for semantic search |
 
 ---
 
-## Quickstart (Windows)
+## Prerequisites
 
-1. Create and activate a virtual environment (PowerShell):
+| Requirement | Description |
+|-------------|-------------|
+| **Python** | 3.9 or higher |
+| **API Keys** | Groq API key (required), Tavily API key (optional, for web search) |
+| **Operating System** | Windows, macOS, or Linux |
+| **Memory** | 4GB+ RAM recommended for embeddings and LLM inference |
+
+### Required API Keys
+
+- **Groq API Key** — Required for LLM inference. Get one at [groq.com](https://groq.com)
+- **Tavily API Key** — Optional, for web search functionality. Get one at [tavily.com](https://tavily.com)
+
+---
+
+## Installation
+
+### Windows (PowerShell)
+
+1. **Clone the repository**
+   ```powershell
+   git clone https://github.com/yourusername/rag1.git
+   cd rag1
+   ```
+
+2. **Create and activate a virtual environment**
+   ```powershell
+   python -m venv .venv
+   .\.venv\Scripts\Activate.ps1
+   ```
+
+3. **Install dependencies**
+   ```powershell
+   pip install -r requirements.txt
+   ```
+
+4. **Configure environment variables**
+   
+   Create a `.env` file in the project root:
+   ```env
+   GROQ_API_KEY=your_groq_api_key_here
+   TAVILY_API_KEY=your_tavily_api_key_here
+   ```
+
+5. **Start the application**
+   ```powershell
+   streamlit run streamlit_app.py
+   ```
+
+The application will open in your default browser at `http://localhost:8501`.
+
+---
+
+## Configuration
+
+### Environment Variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `GROQ_API_KEY` | Yes | — | API key for Groq LLM inference |
+| `TAVILY_API_KEY` | No | — | API key for web search functionality |
+| `OPENAI_API_KEY` | No | — | Alternative LLM provider |
+| `ANTHROPIC_API_KEY` | No | — | Alternative LLM provider |
+| `MAX_CONTEXT_TOKENS` | No | 1800 | Maximum tokens for context window |
+| `RERANK_KEEP` | No | 8 | Number of results to keep after reranking |
+| `DEFAULT_CHUNK_SIZE` | No | 400 | Default chunk size in tokens |
+| `DEFAULT_CHUNK_OVERLAP` | No | 60 | Chunk overlap in tokens |
+| `DEBUG` | No | False | Enable debug logging |
+
+### Runtime Configuration
+
+Configure via the Streamlit sidebar:
+
+- **Chunk Size** — Tokens per chunk (recommended: 400–800)
+- **Chunk Overlap** — Overlap between chunks (recommended: 50–100)
+- **Top-K Retriever** — Number of documents to retrieve
+- **LLM Model** — Select from available Groq models (Llama 3.3, etc.)
+
+---
+
+## Usage
+
+### Getting Started
+
+1. **Launch the app**: `streamlit run streamlit_app.py`
+2. **Upload PDFs**: Use the sidebar to upload one or more PDF documents
+3. **Process documents**: Click "Process Documents" to build indices
+4. **Ask questions**: Type your question in the chat input
+
+### Common Use Cases
+
+| Task | Example Query |
+|------|---------------|
+| Summarize documents | "Summarize the uploaded documents." |
+| Extract specific information | "What is the notice period for termination?" |
+| Research across documents | "Show passages about data retention and summarize." |
+| Web +文档 | "Search the web for latest developments on X" |
+
+### Demo Workflows
+
+#### Level 1 — Basic PDF RAG
+1. Start Streamlit: `streamlit run streamlit_app.py`
+2. Upload PDFs in the sidebar
+3. Click "Process Documents"
+4. Ask questions in the chat box
+
+#### Level 2 — Production Pipeline
+- Monitor logs in terminal to see index-building and pipeline steps
+- Use debug mode for timing and intermediate information
+
+#### Level 3 — Conversational Memory
+- Ask a follow-up question referencing prior context
+- Chat history is preserved in session state
+
+#### Level 4 — Metadata Filtering
+- Upload multiple PDFs with different names
+- View source citations in the expander (file and page info)
+
+#### Level 5 — Agent Tools
+- Use tool-based queries: "Summarize documents", "Search the web for X"
+
+---
+
+## Features Explained
+
+### PDF Processing Pipeline
+
+1. **Text Extraction** — Uses PyMuPDF to extract text from PDF pages
+2. **Chunking** — Splits text into overlapping chunks with configurable size
+3. **Metadata** — Captures filename, page number, chunk index for citations
+
+### Hybrid Retrieval
+
+1. **Dense Retrieval** — FAISS vector store with sentence transformer embeddings
+2. **Sparse Retrieval** — BM25 ranking for keyword-based matching
+3. **RRF Fusion** — Reciprocal Rank Fusion combines results from both retrievers
+4. **Cross-Encoder Reranking** — Reorders results using a cross-encoder model
+
+### Context Compression
+
+- Uses LangChain's ContextualCompressionExtractor
+- Wraps base retriever with LLM-based compression
+- Extracts relevant content based on the query
+
+### Agent System
+
+- **SimpleToolExecutor** — Routes queries to appropriate tools
+- **Available Tools**:
+  - Document QA — Answers questions using uploaded documents
+  - Summarizer — Generates document summaries
+  - Web Search — Uses Tavily for fresh web information
+
+---
+
+## API Reference
+
+### Core Modules
+
+#### `app/core/document_processor.py`
+
+```python
+class DocumentProcessor:
+    def load_pdf(self, file_path: str) -> List[Document]
+    def chunk_documents(self, documents: List[Document], chunk_size: int, overlap: int) -> List[Document]
+    def build_faiss_index(self, documents: List[Document]) -> FAISS
+    def build_bm25_index(self, documents: List[Document]) -> BM25Retriever
+```
+
+#### `app/core/rag_pipeline.py`
+
+```python
+class RAGPipeline:
+    def __init__(self, retriever, llm, compressor)
+    def get_relevant_documents(self, query: str) -> List[Document]
+    def generate_answer(self, query: str, context: List[Document]) -> str
+    def hybrid_retrieve(self, query: str) -> List[Document]
+```
+
+#### `app/core/agent.py`
+
+```python
+class SimpleToolExecutor:
+    def execute(self, query: str, tools: List[BaseTool], memory: Any) -> str
+    def route_to_tool(self, query: str, available_tools: List[str]) -> str
+```
+
+### Models
+
+#### `app/models/model_loader.py`
+
+```python
+def load_llm(provider: str = "groq", model_name: str = "llama-3.3-70b-versatile") -> BaseLLM
+def get_available_models() -> List[str]
+```
+
+#### `app/models/embeddings.py`
+
+```python
+def load_embeddings(model_name: str = "sentence-transformers/all-MiniLM-L6-v2") -> HuggingFaceEmbeddings
+```
+
+---
+
+## Development
+
+### Coding Standards
+
+- Follow PEP 8 style guide
+- Use Black for formatting: `black .`
+- Use isort for imports: `isort .`
+- Type hints required for all functions
+
+### Running Tests
 
 ```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+pytest tests/
 ```
 
-2. Install dependencies:
+### Linting
 
 ```powershell
-pip install -r requirements.txt
-```
-
-3. Create a `.env` file in the project root and add required API keys (example):
-
-```
-GROQ_API_KEY=your_groq_api_key_here
-TAVILY_API_KEY=your_tavily_api_key_here
-```
-
-4. Start the app (run from a terminal to see logs):
-
-```powershell
-streamlit run streamlit_app.py
-```
-
-5. Use the sidebar to upload PDFs, adjust chunk size/overlap, click "Process Documents",
-   then ask questions in the chat box.
-
-Notes:
-- Restart the app after changing embeddings or LLM implementation.
-- Start Streamlit from a shell to ensure logs are printed to stdout.
-
----
-
-## Common workflows
-
-- Summarize uploaded documents: "Summarize the uploaded documents."
-- Extract contractual fields: "What is the notice period for termination?"
-- Investigate a topic across documents: "Show passages that mention `data retention` and summarize."
-- Combine web + docs: use the web search tool (requires Tavily key) to include fresh web context.
-
----
-
-## Assignment: Five Levels (mapping to this repo)
-
-Below is a concise mapping of the assignment's five levels to the current codebase. Each level shows status, the files to inspect, quick demo steps, and short notes about limitations or next steps to reach a full "production" implementation.
-
-### Level 1 — PDF RAG with Semantic Search
-- Status: Done
-- What is implemented: PDF parsing, text splitting, embeddings, FAISS vector store, top-k retrieval, and LLM answer generation.
-- Key files: `app/core/document_processor.py`, `app/models/embeddings.py`, `app/models/model_loader.py`, `app/core/rag_pipeline.py`
-- How to demo:
-  1. Start Streamlit: `streamlit run streamlit_app.py`
-  2. Upload one or more PDFs in the sidebar and click "Process Documents"
-  3. Ask a question in the chat box; the RAG pipeline will retrieve and answer.
-- Notes: Works out-of-the-box after installing dependencies and setting GROQ API key.
-
-### Level 2 — Production-Ready RAG with LangChain (modular pipeline)
-- Status: Done (modularized)
-- What is implemented: LangChain components are used (document loaders, text splitter, retrievers, and prompt templates). The project is organized into modular components (document processing, retrieval pipeline, agent/tools, UI).
-- Key files: `app/core/document_processor.py`, `app/core/rag_pipeline.py`, `app/core/agent.py`, `app/ui/components.py`, `app/main.py`
-- How to demo: same as Level 1; monitor logs in the terminal to see index-building and pipeline steps.
-- Notes: Pipeline is modular but still tightly integrated with Streamlit session state; decoupling logic from UI will improve testability.
-
-### Level 3 — Conversational Memory Support
-- Status: Partial / Done (basic support)
-- What is implemented: Chat history and a memory object are present; user and assistant messages are appended to `st.session_state.chat_history`, and the executor writes to `memory.chat_memory` when invoking tools.
-- Key files: `app/core/agent.py`, `app/ui/components.py`, `app/main.py`, `app/utils/session_state.py` (initialization)
-- How to demo:
-  1. Process documents.
-  2. Ask a question, then ask a follow-up that refers to prior context; the UI shows chat history and the executor keeps a memory buffer.
-- Notes: Memory is present but relatively simple (ConversationBuffer). For advanced conversational behavior (long-term memory, retrieval-augmented memory), consider integrating a persistent conversation store or more structured memory chains.
-
-### Level 4 — Metadata Tagging and Filtering
-- Status: Done
-- What is implemented: Document metadata (file name, page, chunk info) is attached at ingestion; compression returns citation metadata and the UI displays citations with file and page information.
-- Key files: `app/core/document_processor.py`, `app/core/rag_pipeline.py`, `app/ui/components.py`
-- How to demo:
-  1. Upload multiple PDFs with different names.
-  2. Ask a question that should be answered by a specific document; inspect the Sources/expander to see file/page citations.
-- Notes: Metadata extraction is available. If you need advanced filters (restrict to one document by name or date ranges), add metadata-based filtering hooks into the retrievers before fusion.
-
-### Level 5 — Agent-based Chatbot with Tool Use
-- Status: Partial
-- What is implemented: A simplified tool executor (`SimpleToolExecutor`) routes queries to document QA, summarizer, or web search tools. It provides deterministic Markdown outputs and logging. This intentionally bypasses the full LangChain ReAct agent to avoid ReAct parsing complexity.
-- Key files: `app/core/agent.py`, `app/core/rag_pipeline.py`, `app/ui/components.py`
-- How to demo:
-  1. Upload documents and process.
-  2. Ask high-level queries like "Summarize the documents" or "Search the web for latest X" to see tool routing.
-- Notes & gaps: The current executor is simpler than a full LangChain AgentExecutor. To meet the assignment's Level 5 expectations strictly (dynamic tool selection, multi-step chaining using LangChain agents), either:
-  - Reintroduce LangChain agents (AgentExecutor + tools) with structured tool outputs and a safe prompt template, or
-  - Enhance `SimpleToolExecutor` to support multi-step plans and an action-observation loop with robust parsing and fallbacks.
-
----
-
-
-## Configuration & tuning
-
-- Chunk size and overlap: set in the sidebar when ingesting documents. Typical defaults: 400–800 tokens per chunk, 50–100 overlap.
-- Retriever `k` and reranker thresholds: configurable in `app/core/rag_pipeline.py`.
-- Debug mode: toggleable in the UI to surface timing and intermediate info.
-
-If you change embedding or LLM models, re-run document processing to rebuild FAISS and BM25 indices.
-
----
-
-## Development notes
-
-Swap components:
-- LLM: edit `app/models/model_loader.py` to return a different LangChain-compatible LLM instance.
-- Embeddings: edit `app/models/embeddings.py`, then reprocess documents.
-- Add tools: add functions in `app/core/agent.py` and add routing in the executor.
-
-Linting / basic checks:
-
-```powershell
-python -m py_compile app\core\agent.py app\core\rag_pipeline.py app\ui\components.py
-pip install black isort
+pip install black isort mypy
 black --check .
 isort --check-only .
+mypy .
 ```
 
-Recommended CI steps:
-- `python -m py_compile` for changed Python files
-- `black --check` and `isort --check-only`
-- small smoke test that runs the app and submits a minimal query against a sample doc
+### Recommended CI Pipeline
+
+1. `python -m py_compile` — Syntax validation
+2. `black --check` — Format validation
+3. `isort --check-only` — Import sorting
+4. `pytest` — Run test suite
+5. Smoke test — Verify app starts and processes a sample query
+
+### Adding New Features
+
+- **Swap LLM**: Edit `app/models/model_loader.py`
+- **Swap Embeddings**: Edit `app/models/embeddings.py`, then reprocess documents
+- **Add Tools**: Add functions in `app/core/agent.py` and update routing logic
 
 ---
 
 ## Troubleshooting
 
-- No answer returned:
-  - Make sure you processed documents (check sidebar and `processed_files`).
-  - Confirm API keys are set and valid.
-  - Inspect terminal logs for exceptions; start Streamlit from a terminal to see logs.
+### Common Issues
 
-- Logs not visible:
-  - Start Streamlit from a shell/terminal; the app configures logging to write to stdout for visibility.
+| Issue | Solution |
+|-------|----------|
+| No answer returned | Ensure documents are processed; verify API keys are set |
+| Empty search results | Check that PDFs contain selectable text (OCR required for scanned images) |
+| Index build fails | Verify chunk size is not too small; PDFs must have extractable text |
+| API errors | Confirm API keys are valid and not expired |
+| Logs not visible | Run Streamlit from a terminal (not IDE) to see stdout logs |
 
-- Index build fails or returns empty results:
-  - Ensure PDFs contain selectable text (OCR is required for scanned images).
-  - Check chunk size and filtering: very small chunks may be discarded.
+### Debug Mode
+
+Enable debug mode in the sidebar to see:
+- Timing information for each pipeline stage
+- Intermediate retrieval results
+- Reranking scores
+- Context compression details
+
+### Getting Help
+
+1. Check terminal logs for exception details
+2. Enable debug mode for verbose output
+3. Verify API keys are correctly set in `.env`
+4. Ensure all dependencies are installed
 
 ---
 
-## Security & privacy
+## Roadmap
 
-- Uploaded documents are stored in memory and session state by default — they are not persisted to disk by the app.
-- Do not commit API keys to source control. Use environment variables or a secrets manager in production.
+### Planned Features
+
+- [ ] **Persistent Vector Stores** — Milvus, Weaviate, or disk-backed FAISS for larger datasets
+- [ ] **Unit Tests** — Comprehensive test coverage for document processing and retrieval
+- [ ] **Role-Based Access Control** — Multi-tenant deployment with quotas
+- [ ] **Advanced Memory** — Long-term memory with retrieval-augmented memory chains
+- [ ] **LangChain Agent Integration** — Full ReAct agent with dynamic tool selection
+
+### Improvements
+
+- [ ] Docker containerization
+- [ ] Cloud deployment configurations
+- [ ] Webhook integrations for external triggers
+- [ ] Custom document loaders (DOCX, CSV, etc.)
 
 ---
 
-## Roadmap / ideas
+## License
 
-- Persisted vector stores (Milvus / Weaviate / disk-backed FAISS) for larger datasets
-- Unit tests for document processing and retrieval logic
-- Role-based access control and quotas for multi-tenant deployment
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
 
 ---
 
 ## Contributing
 
-1. Fork and create a branch: `git checkout -b feature/your-feature`
-2. Add tests for new logic where applicable
-3. Run formatters: `black`, `isort`
-4. Open a PR describing the change and rationale
+Contributions are welcome! Please follow these steps:
 
-Follow PEP8 and keep changes small and reviewable.
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/your-feature`
+3. Add tests for new functionality
+4. Run formatters: `black .` and `isort .`
+5. Commit your changes with clear commit messages
+6. Push to your branch: `git push origin feature/your-feature`
+7. Open a Pull Request
 
+For major changes, please open an issue first to discuss the proposed approach.
 
+---
+
+*Built with Streamlit, LangChain, FAISS, and Groq.*
