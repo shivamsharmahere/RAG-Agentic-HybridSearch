@@ -67,21 +67,30 @@ def setup_agent(groq_api_key: str, tavily_api_key: str, uploaded_files, chunk_si
             progress_bar.progress(1.0)
             status_text.text("✅ Setup complete!")
             
-            # Update processed files list
+            # Update processed files list and ensure session state is complete
             st.session_state.processed_files = [f.name for f in uploaded_files]
+            
+            # Validate all components are ready
+            if not all(st.session_state.get(key) for key in ['docs', 'faiss_index', 'bm25_retriever', 'agent_executor']):
+                raise ValueError("One or more components failed to initialize properly.")
             
             # Show summary
             doc_count = len(st.session_state.docs)
             files_count = len(uploaded_files)
             
             success_msg = f"""
-            🎉 **Setup Complete!**
+            🎉 **Setup Complete - Ready for Questions!**
             
             ✅ Processed **{files_count}** files into **{doc_count}** searchable chunks  
             🤖 Using **{llm_selection}** for responses  
             🔍 Hybrid search enabled (Vector + Keyword)  
             
-            **You can now ask questions about your documents!**
+            **Status:**
+            - ✅ Documents loaded and chunked
+            - ✅ Search indexes built (FAISS + BM25)
+            - ✅ AI model initialized
+            
+            **You can now ask questions in the chat below!**
             """
             
             st.success(success_msg)

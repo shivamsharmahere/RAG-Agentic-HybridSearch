@@ -127,9 +127,20 @@ def render_sidebar() -> Dict[str, Any]:
             help="Process documents to enable Q&A" if can_process else "Upload files and enter API keys first"
         )
         
-        # Show processing status
-        if st.session_state.get("docs") and st.session_state.get("agent_executor"):
-            st.success("✅ Documents processed! Ready for questions.")
+        # Show detailed processing status
+        docs = st.session_state.get("docs")
+        if docs is not None and len(docs) > 0 and st.session_state.get("agent_executor"):
+            doc_count = len(docs)
+            file_count = len(st.session_state.get("processed_files", []))
+            st.success(f"""
+            ✅ System Ready!
+            - {file_count} documents processed
+            - {doc_count} text chunks extracted
+            - Search indexes built
+            - AI model initialized
+            """)
+        elif docs is not None and len(docs) == 0:
+            st.warning("⚠️ No valid content found in uploaded documents")
         
         st.divider()
         
@@ -242,64 +253,83 @@ def generate_and_render_response():
     """
     user_input = st.session_state.chat_history[-1]["content"]
 
-    if st.session_state.get("agent_executor"):
-        with st.spinner("🧠 Processing your question..."):
-            try:
-                # Execute the query directly
-                result = st.session_state.agent_executor.invoke({"input": user_input})
-                
-                # Get the answer
-                answer = result.get('output', 'I could not process your request.')
-                
-                # Initialize citations and tool info
+    # Enhanced state checks with better validation
+    missing_components = []
+    
+    # Check for processed documents
+    docs = st.session_state.get("docs")
+    if docs is None or (isinstance(docs, list) and len(docs) == 0):
+        missing_components.append("📄 Documents not processed")
+    
+    # Check for search indexes
+    if not st.session_state.get("faiss_index") or not st.session_state.get("bm25_retriever"):
+        missing_components.append("🔍 Search indexes not built")
+    
+    # Check for AI model
+    if not st.session_state.get("agent_executor"):
+        missing_components.append("🤖 AI model not initialized")
+    
+    if missing_components:
+        error_msg = "### 🚫 System not ready\n\n" + "\n".join(f"- {msg}" for msg in missing_components)
+        error_msg += "\n\nPlease upload documents and click 'Process Documents' to continue."
+        st.error(error_msg)
+        return
+
+    with st.spinner("🧠 Processing your question..."):
+        try:
+            # Execute the query directly
+            result = st.session_state.agent_executor.invoke({"input": user_input})
+            
+            # Get the answer
+            answer = result.get('output', 'I could not process your request.')
+            
+            # Initialize citations and tool info
+            citations = []
+            tool_name = "Direct Response"
+            
+            # Check for document citations from RAG tool
+            if st.session_state.get("latest_rag_result"):
+                citations = st.session_state.latest_rag_result.get("citations", [])
+                tool_name = "Document Q&A"
+                # Clear after use
+                del st.session_state.latest_rag_result
+            
+            # Check for web search citations
+            elif st.session_state.get("latest_web_results"):
+                web_results = st.session_state.latest_web_results
                 citations = []
-                tool_name = "Direct Response"
-                
-                # Check for document citations from RAG tool
-                if st.session_state.get("latest_rag_result"):
-                    citations = st.session_state.latest_rag_result.get("citations", [])
-                    tool_name = "Document Q&A"
-                    # Clear after use
-                    del st.session_state.latest_rag_result
-                
-                # Check for web search citations
-                elif st.session_state.get("latest_web_results"):
-                    web_results = st.session_state.latest_web_results
-                    citations = []
-                    for idx, result_item in enumerate(web_results, 1):
-                        citations.append({
-                            "idx": idx,
-                            "file_name": result_item.get("title", "Web Result"),
-                            "page": "Web",
-                            "snippet": result_item.get("content", "No content available")[:400],
-                            "url": result_item.get("url", "")
-                        })
-                    tool_name = "Web Search"
-                    # Clear after use
-                    del st.session_state.latest_web_results
-                
-                # Determine tool used based on content
-                if "📚 Document Collection Summary" in answer:
-                    tool_name = "Document Summary"
-                elif "🌐 Web Search Results" in answer:
-                    tool_name = "Web Search"
-                
-                # Add the response to chat history
-                st.session_state.chat_history.append({
-                    "role": "assistant", 
-                    "content": answer,
-                    "citations": citations,
-                    "tool_name": tool_name
-                })
-                
-            except Exception as e:
-                # Error handling
-                error_message = f"**Error:** {str(e)}"
-                st.session_state.chat_history.append({
-                    "role": "assistant", 
-                    "content": error_message,
-                    "citations": [],
-                    "tool_name": "Error"
-                })
-    else:
-        st.warning("Please process documents first.")
+                for idx, result_item in enumerate(web_results, 1):
+                    citations.append({
+                        "idx": idx,
+                        "file_name": result_item.get("title", "Web Result"),
+                        "page": "Web",
+                        "snippet": result_item.get("content", "No content available")[:400],
+                        "url": result_item.get("url", "")
+                    })
+                tool_name = "Web Search"
+                # Clear after use
+                del st.session_state.latest_web_results
+            
+            # Determine tool used based on content
+            if "📚 Document Collection Summary" in answer:
+                tool_name = "Document Summary"
+            elif "🌐 Web Search Results" in answer:
+                tool_name = "Web Search"
+            
+            # Add the response to chat history
+            st.session_state.chat_history.append({
+                "role": "assistant", 
+                "content": answer,
+                "citations": citations,
+                "tool_name": tool_name
+            })
+            
+        except Exception as e:
+            # Error handling
+            error_message = f"**Error:** {str(e)}"
+            st.session_state.chat_history.append({
+                "role": "assistant", 
+                "content": error_message,
+                "citations": [],
+                "tool_name": "Error"
+            })

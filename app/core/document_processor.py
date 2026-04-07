@@ -4,24 +4,6 @@ Functions for loading and processing PDF documents.
 
 import os
 import tempfile
-from typing import List
-
-from langchain.schema import Document
-from langchain_community.document_loaders import PyMuPDFLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import FAISS
-from langchain_community.vectorstores.utils import DistanceStrategy
-from langchain_community.retrievers import BM25Retriever
-
-from app.models.embeddings import QwenEmbeddings
-
-
-"""
-Functions for loading and processing PDF documents.
-"""
-
-import os
-import tempfile
 from typing import List, Tuple
 import streamlit as st
 

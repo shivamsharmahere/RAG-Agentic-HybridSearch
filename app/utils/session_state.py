@@ -14,7 +14,7 @@ def initialize_session_state():
         "chat_history": [],  # Chat history for display
         "memory": ConversationBufferMemory(memory_key="chat_history", return_messages=True, output_key='output'),  # LangChain memory
         "agent_executor": None,  # Agent executor
-        "docs": [],  # Original document list
+        "docs": None,  # Original document list
         "faiss_index": None,  # Vector index
         "bm25_retriever": None,  # Sparse retriever
         "processed_files": [],  # List of processed file names

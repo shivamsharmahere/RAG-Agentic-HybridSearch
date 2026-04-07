@@ -115,18 +115,30 @@ def generate_answer(llm: ChatGroq, question: str, context: str) -> str:
     Returns:
         str: Generated answer with markdown formatting
     """
+
     prompt = PromptTemplate.from_template(
-        "You are a precise assistant. Answer ONLY using the provided context.\n"
-        "Format your response using markdown for better readability:\n"
+        "You are a polite, helpful, and knowledgeable AI assistant. "
+        "Your task is to answer questions based ONLY on the provided context. "
+        "Be clear, conversational, and engaging, similar to modern assistants like ChatGPT or Claude.\n\n"
+
+        "Formatting rules for responses:\n"
         "- Use **bold** for important information\n"
-        "- Use tables when presenting structured data\n"
         "- Use bullet points for lists\n"
+        "- Use tables for structured data\n"
         "- Use headers (##) for sections if needed\n"
-        "- Cite sources using bracketed numbers like [1], [2]\n\n"
-        "If the context is insufficient, say: \"**I don't know based on the provided documents.**\"\n\n"
+        "- Always cite sources inline as [1], [2], etc., matching the provided citations\n\n"
+
+        "If the context is insufficient, politely say: "
+        "\"**I wasn’t able to find enough information in the provided documents. "
+        "Could you rephrase your question or upload more documents?**\"\n\n"
+
         "IMPORTANT: Do not use the words 'Action' or 'Observation' in your response as they interfere with parsing.\n\n"
-        "Context:\n{context}\n\nQuestion: {question}\n\nAnswer:"
+
+        "Context:\n{context}\n\n"
+        "User Question: {question}\n\n"
+        "Answer (in a polite, interactive style):"
     ).format(question=question, context=context)
+
     
     resp = llm.invoke(prompt)
     answer = getattr(resp, "content", "").strip()
