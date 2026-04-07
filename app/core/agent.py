@@ -69,8 +69,6 @@ def advanced_rag_tool(query: str) -> str:
 
         # Sanitize output for ReAct (preserve markdown)
         # Only replace at the beginning of lines followed by space to avoid false positives
-        import re
-
         cleaned_answer = re.sub(
             r"^```.*$", "", answer, flags=re.MULTILINE
         )  # Remove code blocks
